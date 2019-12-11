@@ -30,10 +30,11 @@ After a while, the template should be available to the enrollment station user t
 After setting up the Enrollment Agent certificate, you need a YubiKey set to CCID Smart Card mode.
 
 **C. Changing YubiKey to CCID Smart Card mode**
-1. Download YubiKey NEO Manager from here https://developers.yubico.com/yubikey-neo-manager/Releases/
-2. Under `Devices` select `YubiKey NEO`
-3. Click `Change connection mode`
-4. Tick `CCID*` and click `OK`
+1. Download YubiKey YubiKey Manager from here https://developers.yubico.com/yubikey-manager/
+2. In the GUI application (ykman-gui.exe) under `Interfaces` select on the left USB section `PIV`
+3. Save the new settings with click on `Save Interfaces`
+
+Alternativ use the CLI application (ykman.exe) and enter `ykman mode CCID`
 
 ### First-run
 Run `Discover-EnrollmentAgent.ps1` to locate the thumbprint of the local Enrollment Agent certificate. The script will store the results in enrollmentagent.txt which will be read by the other scripts.
@@ -132,6 +133,10 @@ The commands are:
 * `Revoke-Certificate` revokes a specific certificate based on its `Serial Number`. This command will show a dialog to chose the CA to use.
 
       PS > Revoke-Certificate -SerialNumber 18137ea00002000001bb
+
+* `Export-Store` exports the store.json database to the CSV format.
+
+      PS > Export-Store
 
 Import the functionality by opening PowerShell in the folder with the `SharedFeatures.ps1` file and write `. .\SharedFeatures.ps1`
 Now you can call `Generate-RandomString` and it will output a 12 characters random string.

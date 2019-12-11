@@ -59,6 +59,18 @@ namespace YubicoLib.YubikeyPiv
             return triesLeft;
         }
 
+        public uint GetSerialNumber()
+        {
+            uint serial = 0;
+            YubicoPivReturnCode code = YubikeyPivNative.YkPivGetSerial(_deviceHandle.State, ref serial);
+
+            if (code != YubicoPivReturnCode.YKPIV_OK)
+                throw new Exception("Unable to get serialnumber: " + code);
+
+            return serial;
+        }
+
+
         public bool VerifyPin(string pin, out int remainingTries)
         {
             int triesLeft = -1;

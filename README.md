@@ -1,17 +1,23 @@
 # Enrollment Station using YubiKey Smart Cards
-
 A Smart Card enrollment station for use in enterprises with Microsoft Active Directory Certificate Services and certificate-based logons. This software package will streamline some operations such as enrolling and terminating Smart Card devices.
 
 This project is an entry in the YubiKing 2015 competition and should be considered a work in progress.
 
+### Note
+The original project is archived. (https://github.com/CSIS/EnrollmentStation)
+But we need the application including Yubikey 5 Support for hybrid environments with Linux, Windows and MacOS clients.
+Using container based Yubikeys with help of the Yubico Windows smartcard minidriver was not an option.
+
+
+
 ### Dependencies
 * Windows PKI (Active Directory Certificate Services)
 * Enrollment Agent Certificate (see prerequisites)
-* CCID smart cards from Yubico (currently Premium NEO and Premium NEO-N)
+* CCID smart cards from Yubico (currently Yubikey NEO, Yubikey 4 and Yubikey 5 NFC)
 * (optional) YubiHSM
 
 ## Download
-You can find the latest binaries at our [releases page](https://github.com/CSIS/EnrollmentStation/releases). 
+You can find the latest binaries at our [releases page](https://github.com/scVENUS/EnrollmentStation/releases). 
 
 ## Prerequisites
 To use this tool you will need an Enrollment Agent Certificate which allows you to enroll certificates on behalf of other users. This certificate template is available on a default Active Directory Certificate Services (Windows CA) installation but is normally not permitted for any users other than Domain Admins. For added security, create a dedicated user which is used as the enrollment station user.
@@ -36,10 +42,11 @@ After setting up the Enrollment Agent certificate, you need a YubiKey set to CCI
 
 **C. Changing YubiKey to CCID Smart Card mode**
 
-1. Download YubiKey NEO Manager from here https://developers.yubico.com/yubikey-neo-manager/Releases/
-2. Under `Devices` select `YubiKey NEO`
-3. Click `Change connection mode`
-4. Tick `CCID*` and click `OK`
+1. Download YubiKey YubiKey Manager from here https://developers.yubico.com/yubikey-manager/
+2. In the GUI application (ykman-gui.exe) under `Interfaces` select on the left USB section `PIV`
+3. Save the new settings with click on `Save Interfaces`
+
+Alternativ use the CLI application (ykman.exe) and enter `ykman mode CCID`
 
 You can also read our Manual to find methods with accompanying screenshots.
 

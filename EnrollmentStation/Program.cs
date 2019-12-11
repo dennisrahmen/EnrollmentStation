@@ -1,6 +1,6 @@
 ﻿using System;
 using System.Windows.Forms;
-using YubicoLib.YubikeyNeo;
+using YubicoLib.YubikeyManager;
 
 namespace EnrollmentStation
 {
@@ -12,11 +12,12 @@ namespace EnrollmentStation
         [STAThread]
         static void Main()
         {
+            const string YKbinary = @"Binaries\YubikeyManager\ykman.exe";
+            const string WorkingDirectory = @"Binaries\YubikeyManager";
+            YubmanConsole.setYKManPath(YKbinary, WorkingDirectory);
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
             Application.Run(new MainForm());
-
-            YubikeyNeoManager.Instance.Dispose();
         }
     }
 }

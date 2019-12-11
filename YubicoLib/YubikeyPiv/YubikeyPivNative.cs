@@ -38,6 +38,9 @@ namespace YubicoLib.YubikeyPiv
         [DllImport("Binaries\\libykpiv-1.dll", EntryPoint = "ykpiv_get_version", CharSet = CharSet.Ansi, SetLastError = true, CallingConvention = CallingConvention.Cdecl)]
         internal static extern YubicoPivReturnCode YkPivGetVersion(IntPtr state, StringBuilder version, int length);
 
+        [DllImport("Binaries\\libykpiv-1.dll", EntryPoint = "ykpiv_get_serial", CharSet = CharSet.Ansi, SetLastError = true, CallingConvention = CallingConvention.Cdecl)]
+        internal static extern YubicoPivReturnCode YkPivGetSerial(IntPtr state, ref uint serial);
+
         [DllImport("Binaries\\libykpiv-1.dll", EntryPoint = "ykpiv_fetch_object", CharSet = CharSet.Ansi, SetLastError = true, CallingConvention = CallingConvention.Cdecl)]
         internal static extern YubicoPivReturnCode YkPivFetchObject(IntPtr state, int objectId, byte[] data, ref int length);
 

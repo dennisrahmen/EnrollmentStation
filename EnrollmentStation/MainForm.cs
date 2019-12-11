@@ -8,8 +8,8 @@ using System.Windows.Forms;
 using EnrollmentStation.Code;
 using EnrollmentStation.Code.DataObjects;
 using EnrollmentStation.Code.Utilities;
-using YubicoLib.YubikeyNeo;
 using YubicoLib.YubikeyPiv;
+using YubicoLib.YubikeyManager;
 
 namespace EnrollmentStation
 {
@@ -20,7 +20,7 @@ namespace EnrollmentStation
 
         public const string FileStore = "store.json";
         public const string FileSettings = "settings.json";
-
+        
         private bool _hsmPresent;
 
         private readonly Timer _hsmUpdateTimer = new Timer();
@@ -28,12 +28,12 @@ namespace EnrollmentStation
         public MainForm()
         {
             CheckForIllegalCrossThreadCalls = false; //TODO: remove
-
             InitializeComponent();
         }
 
         private void MainForm_Load(object sender, EventArgs e)
         {
+            
             RefreshUserStore();
             RefreshSettings();
 
@@ -52,6 +52,7 @@ namespace EnrollmentStation
             YubikeyDetector.Instance.Start();
 
             // Determine if we need to get the settings set
+                       
             if (!File.Exists(FileSettings) || _settings.DefaultAlgorithm == 0)
             {
                 DlgSettings dialog = new DlgSettings(_settings);
@@ -63,7 +64,7 @@ namespace EnrollmentStation
                     Close();
                 }
             }
-
+            
             RefreshHsm();
         }
 
@@ -74,22 +75,29 @@ namespace EnrollmentStation
 
         private void YubikeyStateChange()
         {
-            string devName = YubikeyNeoManager.Instance.ListDevices().FirstOrDefault();
+
+            // Piv Manager find only CCID enabled  Yubikeys
+            List<string> listDevices = YubikeyPivManager.Instance.ListDevices().ToList();
+            string devName = listDevices.FirstOrDefault();
             bool hasDevice = !string.IsNullOrEmpty(devName);
 
+            YubmanUtil yu = new YubmanUtil();
+            btnEnableCCID.Enabled = false;
             btnExportCert.Enabled = false;
             btnViewCert.Enabled = false;
 
             if (hasDevice)
             {
-                using (YubikeyNeoDevice dev = YubikeyNeoManager.Instance.OpenDevice(devName))
+                using (YubikeyPivDevice dev = YubikeyPivManager.Instance.OpenDevice(devName))
                 {
-                    YubicoLib.YubikeyNeo.YubicoNeoMode currentMode = dev.GetMode();
-                    bool enableCcid = !currentMode.HasCcid;
-
-                    btnExportCert.Enabled = !enableCcid;
-                    btnViewCert.Enabled = !enableCcid;
+                    int serialNumber = (int)dev.GetSerialNumber();  // uint         
+                    bool success = yu.GetYubikeyMode(serialNumber.ToString(), out bool HasOtp, out bool HasCcid, out bool HasFido, out string mode);
+                    bool have2enableCcid = !HasCcid;
+                    btnEnableCCID.Enabled = HasCcid;
+                    btnExportCert.Enabled = !have2enableCcid;
+                    btnViewCert.Enabled = !have2enableCcid;
                 }
+                
             }
 
             RefreshInsertedKey();
@@ -135,26 +143,28 @@ namespace EnrollmentStation
         }
 
         private void RefreshInsertedKey()
-        {
-            List<string> listDevices = YubikeyNeoManager.Instance.ListDevices().ToList();
+        {                               
+            List<string> listDevices = YubikeyPivManager.Instance.ListDevices().ToList();
             string devName = listDevices.FirstOrDefault();
             bool hasDevice = !string.IsNullOrEmpty(devName);
 
             foreach (Control control in gbInsertedKey.Controls)
             {
                 if (control.Name.StartsWith("lbl"))
-                    control.Visible = hasDevice;
+                    control.Visible = (hasDevice);
             }
 
             if (hasDevice)
-            {
-                using (YubikeyNeoDevice dev = YubikeyNeoManager.Instance.OpenDevice(devName))
+            { 
+                using (YubikeyPivDevice dev = YubikeyPivManager.Instance.OpenDevice(devName))
                 {
-                    int serialNumber = dev.GetSerialNumber();
-                    lblInsertedSerial.Text = serialNumber.ToString();
-                    lblInsertedFirmware.Text = dev.GetVersion().ToString();
-                    lblInsertedMode.Text = dev.GetMode().ToString();
-
+                    int serialNumber = (int) dev.GetSerialNumber();  // uint                    
+                    var yi = new YubikeyInfo();
+                    yi.GetYubikeyInfo(serialNumber.ToString());
+                    lblDevType.Text = yi.devicetype;
+                    lblInsertedSerial.Text = yi.serial;
+                    lblInsertedFirmware.Text = yi.firmware;
+                    lblInsertedMode.Text = yi.usbinterface;
                     lblInsertedHasBeenEnrolled.Text = _dataStore.Search(serialNumber).Any().ToString();
                 }
             }
@@ -201,6 +211,7 @@ namespace EnrollmentStation
             _settings = Settings.Load(FileSettings);
         }
 
+
         private void btnViewCert_Click(object sender, EventArgs e)
         {
             X509Certificate2 cert = null;
@@ -230,9 +241,9 @@ namespace EnrollmentStation
 
             if (!string.IsNullOrEmpty(devName))
             {
-                using (YubikeyNeoDevice dev = YubikeyNeoManager.Instance.OpenDevice(devName))
+                using (YubikeyPivDevice dev = YubikeyPivManager.Instance.OpenDevice(devName))
                 {
-                    deviceSerial = dev.GetSerialNumber();
+                    deviceSerial = (int) dev.GetSerialNumber();
                 }
 
                 using (YubikeyPivDevice dev = YubikeyPivManager.Instance.OpenDevice(devName))
@@ -313,7 +324,7 @@ namespace EnrollmentStation
 
         private void MainForm_FormClosing(object sender, FormClosingEventArgs e)
         {
-            YubikeyNeoManager.Instance.Dispose();
+            // YubikeyNeoManager.Instance.Dispose();
         }
 
         private void tsbSettings_Click(object sender, EventArgs e)
@@ -448,14 +459,14 @@ namespace EnrollmentStation
                 // Wipe the Yubikey
                 worker.ReportProgress(50, "Wiping Yubikey ...");
 
-                string devName = YubikeyNeoManager.Instance.ListDevices().FirstOrDefault();
+                string devName = YubikeyPivManager.Instance.ListDevices().FirstOrDefault();
                 bool hasDevice = !string.IsNullOrEmpty(devName);
 
                 if (hasDevice)
                 {
-                    using (YubikeyNeoDevice dev = YubikeyNeoManager.Instance.OpenDevice(devName))
+                    using (YubikeyPivDevice dev = YubikeyPivManager.Instance.OpenDevice(devName))
                     {
-                        int serial = dev.GetSerialNumber();
+                        int serial = (int) dev.GetSerialNumber();
                         if (item.DeviceSerial != serial)
                         {
                             // Something went seriously wrong - perhaps the user switched keys?
@@ -498,15 +509,23 @@ namespace EnrollmentStation
             MessageBox.Show("CSIS Enrollment Station" +
                             Environment.NewLine +
                             Environment.NewLine +
-                            "YubiKey 4/NEO have smart card functionality and with this application, you can enroll smart cards on behalf of users " +
+                            "YubiKey 5/4/NEO have smart card functionality and with this application, you can enroll smart cards on behalf of users " +
                             "when coupled with Windows Active Directory and Microsoft Windows Certificate Services." +
                             Environment.NewLine +
                             Environment.NewLine +
                             "https://github.com/CSIS/EnrollmentStation/" +
                             Environment.NewLine +
                             Environment.NewLine +
-                            "Written by Michael Bisbjerg and Ian Qvist", "CSIS Enrollment Station"
+                            "Written by Michael Bisbjerg and Ian Qvist" +
+                            Environment.NewLine +
+                            "Modified by Jürgen Fechter", "CSIS Enrollment Station" 
                             , MessageBoxButtons.OK);
+        }
+
+        private void btnEnableCCID_Click(object sender, EventArgs e)
+        {
+            DlgChangeMode changeMode = new DlgChangeMode();
+            DialogResult resp = changeMode.ShowDialog();
         }
     }
 }

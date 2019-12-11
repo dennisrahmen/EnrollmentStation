@@ -50,7 +50,6 @@ namespace EnrollmentStation
                 if (item.Value == YubikeyPivNative.YKPIV_ALGO_RSA2048)
                     drpAlgorithm.SelectedItem = item;
             }
-
             UpdateView();
 
             try
@@ -229,6 +228,13 @@ namespace EnrollmentStation
                 txtCaTemplate.BackColor = Color.White;
                 e.Cancel = false;
             }
+        }
+
+        private void llDefaultMgtKey_LinkClicked(object sender, LinkLabelLinkClickedEventArgs e)
+        {
+            
+            txtManagementKey.Text = "010203040506070801020304050607080102030405060708";
+            txtManagementKey.BackColor = Color.White;
         }
     }
 }

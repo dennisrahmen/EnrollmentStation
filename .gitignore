@@ -65,6 +65,9 @@ ipch/
 *.vsp
 *.vspx
 
+# Visual Studio 2015/2017/2019 cache/options directory
+.vs/
+
 # Guidance Automation Toolkit
 *.gpState
 
@@ -154,3 +157,5 @@ Scripts/ManagementKey.bin
 Scripts/enrollmentagent.txt
 Scripts/log.txt
 Compiled/
+
+

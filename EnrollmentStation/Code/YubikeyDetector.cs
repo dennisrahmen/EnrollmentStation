@@ -39,7 +39,7 @@ namespace EnrollmentStation.Code
 
             while (!_disposed)
             {
-                HashSet<string> devices = new HashSet<string>(YubicoLib.YubikeyNeo.YubikeyNeoManager.Instance.ListDevices());
+                HashSet<string> devices = new HashSet<string>(YubicoLib.YubikeyPiv.YubikeyPivManager.Instance.ListDevices());
 
                 missing.AddRange(_previousList.Except(devices));
                 @new.AddRange(devices.Except(_previousList));

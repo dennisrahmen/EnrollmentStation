@@ -15,5 +15,9 @@ namespace YubicoLib.YubikeyPiv
         YKPIV_WRONG_PIN = -10,
         YKPIV_INVALID_OBJECT = -11,
         YKPIV_ALGORITHM_ERROR = -12,
+        YKPIV_PIN_LOCKED = -13,
+        YKPIV_ARGUMENT_ERROR = -14, //i.e. invalid input argument
+        YKPIV_RANGE_ERROR = -15, //i.e. value range error
+        YKPIV_NOT_SUPPORTED = -16
     }
 }

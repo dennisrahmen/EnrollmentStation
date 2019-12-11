@@ -4,8 +4,9 @@ using System.Linq;
 using System.Windows.Forms;
 using EnrollmentStation.Code;
 using EnrollmentStation.Code.DataObjects;
-using YubicoLib.YubikeyNeo;
+// using YubicoLib.YubikeyNeo;
 using YubicoLib.YubikeyPiv;
+
 
 namespace EnrollmentStation
 {
@@ -62,22 +63,22 @@ namespace EnrollmentStation
         {
             AcceptButton = cmdChange;
 
-            string devName = YubikeyNeoManager.Instance.ListDevices().FirstOrDefault();
+            string devName = YubikeyPivManager.Instance.ListDevices().FirstOrDefault();
             bool hadDevice = !string.IsNullOrEmpty(devName);
 
             if (!hadDevice)
                 return;
 
-            using (YubikeyNeoDevice dev = YubikeyNeoManager.Instance.OpenDevice(devName))
+            using (YubikeyPivDevice dev = YubikeyPivManager.Instance.OpenDevice(devName))
             {
-                int yubiSerial = dev.GetSerialNumber();
+                int yubiSerial = (int) dev.GetSerialNumber();
                 lblSerialNumber.Text = yubiSerial.ToString();
             }
         }
 
         private void cmdChange_Click(object sender, EventArgs e)
         {
-            string devName = YubikeyNeoManager.Instance.ListDevices().FirstOrDefault();
+            string devName = YubikeyPivManager.Instance.ListDevices().FirstOrDefault();
             bool hadDevice = !string.IsNullOrEmpty(devName);
 
             if (!hadDevice)
