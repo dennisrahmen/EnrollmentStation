@@ -61,3 +61,8 @@
 #*.PDF   diff=astextplain
 #*.rtf   diff=astextplain
 #*.RTF   diff=astextplain
+
+###############################################################################
+# ignore third party files
+EnrollmentStation/Binaries/**/* linguist-vendored
+YubicoLib/Binaries/* linguist-vendored
