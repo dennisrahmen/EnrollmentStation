@@ -63,3 +63,4 @@ This project makes use of the following open source projects
 * Handle more diverse PKI setups
 * Encrypt the configuration
 * Describe revoke procedure and requirements thereto (permissions, COM object .. )
+* Support to save multiple certificates into slot 9a
