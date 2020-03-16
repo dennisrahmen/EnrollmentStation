@@ -11,11 +11,13 @@ using CERTCLIENTLib;
 using EnrollmentStation.Code;
 using EnrollmentStation.Code.DataObjects;
 using EnrollmentStation.Code.Utilities;
+using MetroFramework;
+using MetroFramework.Forms;
 using YubicoLib.YubikeyPiv;
 
 namespace EnrollmentStation
 {
-    public partial class DlgSettings : Form
+    public partial class DlgSettings : MetroForm
     {
         private const int CC_UIPICKCONFIG = 0x1;
         private static readonly Regex _managementKeyRegex = new Regex("^[a-fA-F0-9]{48}$", RegexOptions.Compiled);
@@ -99,7 +101,7 @@ namespace EnrollmentStation
                    DisplaySelectedCertificate(cert);
                 }
                 else
-                    MessageBox.Show(this,
+                    MetroMessageBox.Show(this,
                         "The certificate with the thumbprint " + _selectedCertificateThumb +
                         " was not found in your certificate store.", "Certificate not found", MessageBoxButtons.OK,
                         MessageBoxIcon.Error);

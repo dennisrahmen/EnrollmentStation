@@ -22,14 +22,28 @@ namespace EnrollmentStation.Code.DataObjects
         public static Settings Load(string file)
         {
             if (!File.Exists(file))
+            {
                 return new Settings();
-
-            return JsonConvert.DeserializeObject<Settings>(File.ReadAllText(file)) ?? new Settings();
+            }
+            File.Decrypt(file);
+            Settings settings = JsonConvert.DeserializeObject<Settings>(File.ReadAllText(file)) ?? new Settings();
+            File.Encrypt(file);
+            return settings;
         }
 
         public void Save(string file)
         {
-            File.WriteAllText(file, JsonConvert.SerializeObject(this));
+            if (!File.Exists(file))
+            {
+                File.WriteAllText(file, JsonConvert.SerializeObject(this));
+                File.Encrypt(file);
+            }
+            else
+            {
+                File.Decrypt(file);
+                File.WriteAllText(file, JsonConvert.SerializeObject(this));
+                File.Encrypt(file);
+            }
         }
     }
 }

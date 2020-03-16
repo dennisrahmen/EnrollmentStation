@@ -3,6 +3,7 @@ using System.IO;
 using System.Linq;
 using EnrollmentStation.Code.DataObjects;
 using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 
 namespace EnrollmentStation.Code
 {
@@ -43,8 +44,10 @@ namespace EnrollmentStation.Code
         public static DataStore Load(string file)
         {
             if (!File.Exists(file))
+            {
                 return new DataStore();
-
+            }
+            File.Decrypt(file);
             return JsonConvert.DeserializeObject<DataStore>(File.ReadAllText(file));
         }
 
@@ -60,10 +63,12 @@ namespace EnrollmentStation.Code
             }
             else if (File.Exists(file))
             {
+                File.Encrypt(file);
                 File.Move(file, bakFile);
             }
 
             File.WriteAllText(file, JsonConvert.SerializeObject(this));
+            File.Encrypt(file);
         }
     }
 }

@@ -4,6 +4,7 @@ using System.Windows.Forms;
 using EnrollmentStation.Code;
 using EnrollmentStation.Code.DataObjects;
 using EnrollmentStation.Code.Utilities;
+using MetroFramework.Forms;
 // using YubicoLib.YubikeyNeo;
 using YubicoLib.YubikeyPiv;
 
@@ -12,7 +13,7 @@ using YubicoLib.YubikeyPiv;
 
 namespace EnrollmentStation
 {
-    public partial class DlgPleaseInsertYubikey : Form
+    public partial class DlgPleaseInsertYubikey : MetroForm
     {
         private readonly EnrolledYubikey _key;
 

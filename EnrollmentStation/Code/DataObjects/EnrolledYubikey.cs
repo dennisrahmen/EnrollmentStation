@@ -16,6 +16,9 @@ namespace EnrollmentStation.Code.DataObjects
         public string CA { get; set; }
 
         [XmlAttribute]
+        public string Slot { get; set; }
+
+        [XmlAttribute]
         public byte[] ManagementKey { get; set; }
 
         [XmlAttribute]

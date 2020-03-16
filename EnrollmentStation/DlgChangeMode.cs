@@ -7,11 +7,11 @@ using YubicoLib.YubikeyPiv;
 using YubicoLib.YubikeyManager;
 using System.Collections.Generic;
 using System.Linq;
-
+using MetroFramework.Forms;
 
 namespace EnrollmentStation
 {
-    public partial class DlgChangeMode : Form
+    public partial class DlgChangeMode : MetroForm
     {
         private bool _stateWaitingToRemove;
         private bool _deferCheckboxEvents;

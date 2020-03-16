@@ -3,10 +3,11 @@ using System.ComponentModel;
 using System.Windows.Forms;
 using EnrollmentStation.Code;
 using EnrollmentStation.Code.Utilities;
+using MetroFramework.Forms;
 
 namespace EnrollmentStation
 {
-    public partial class DlgProgress : Form
+    public partial class DlgProgress : MetroForm
     {
         private BackgroundWorker _worker;
 

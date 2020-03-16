@@ -168,9 +168,9 @@ namespace YubicoLib.YubikeyPiv
             return true;
         }
 
-        public bool GenerateKey9a(byte algorithm, out RSAParameters publicKey)
+        public bool GenerateKey9a(byte algorithm, out RSAParameters publicKey_9a)
         {
-            publicKey = new RSAParameters();
+            publicKey_9a = new RSAParameters();
 
             byte[] templ = { 0, YubikeyPivNative.YKPIV_INS_GENERATE_ASYMMETRIC, 0, 0x9A };
             byte[] inData = new byte[5];    // TODO: Newer versions of yubico-piv-tool use 11 bytes of data, see: https://github.com/Yubico/yubico-piv-tool/blob/b08de955970c5cd544c740990fb68f496fedb814/tool/yubico-piv-tool.c#L122
@@ -222,8 +222,67 @@ namespace YubicoLib.YubikeyPiv
             offset = GetDataOffsetAndLength(outData, out dataLength);
             byte[] exponent = outData.Skip(offset).Take(dataLength).ToArray();
 
-            publicKey.Modulus = modulus;
-            publicKey.Exponent = exponent;
+            publicKey_9a.Modulus = modulus;
+            publicKey_9a.Exponent = exponent;
+
+            return true;
+        }
+        public bool GenerateKey9d(byte algorithm, out RSAParameters publicKey_9d)
+        {
+            publicKey_9d = new RSAParameters();
+
+            byte[] templ = { 0, YubikeyPivNative.YKPIV_INS_GENERATE_ASYMMETRIC, 0, 0x9D };
+            byte[] inData = new byte[5];    // TODO: Newer versions of yubico-piv-tool use 11 bytes of data, see: https://github.com/Yubico/yubico-piv-tool/blob/b08de955970c5cd544c740990fb68f496fedb814/tool/yubico-piv-tool.c#L122
+            byte[] outData = new byte[1024];
+            int outLength = outData.Length, sw = -1;
+
+            // Set up IN
+            inData[0] = 0xAC;
+            inData[1] = 3;
+            inData[2] = 0x80;
+            inData[3] = 1;
+            inData[4] = algorithm;
+
+            YubicoPivReturnCode code = YubikeyPivNative.YkPivTransferData(_deviceHandle.State, templ, inData, inData.Length, outData, ref outLength, ref sw);
+
+            if (code != YubicoPivReturnCode.YKPIV_OK)
+            {
+                return false;
+            }
+
+            if (sw != 0x9000)
+            {
+                return false;
+            }
+
+            // Skip first 2 bytes
+            outData = outData.Skip(2).ToArray();
+
+            int dataLength;
+            int offset = GetDataOffsetAndLength(outData, out dataLength);
+
+            outData = outData.Skip(offset).ToArray();
+
+            if (outData[0] != 0x81)
+                throw new InvalidOperationException("Received bad public key from yubikey");
+
+            Array.Copy(outData, 1, outData, 0, outData.Length - 1);
+
+            offset = GetDataOffsetAndLength(outData, out dataLength);
+
+            byte[] modulus = outData.Skip(offset).Take(dataLength).ToArray();
+            outData = outData.Skip(offset + dataLength).ToArray();
+
+            if (outData[0] != 0x82)
+                throw new InvalidOperationException("Received bad public key structure from yubikey");
+
+            Array.Copy(outData, 1, outData, 0, outData.Length - 1);
+
+            offset = GetDataOffsetAndLength(outData, out dataLength);
+            byte[] exponent = outData.Skip(offset).Take(dataLength).ToArray();
+
+            publicKey_9d.Modulus = modulus;
+            publicKey_9d.Exponent = exponent;
 
             return true;
         }
@@ -306,9 +365,9 @@ namespace YubicoLib.YubikeyPiv
             return new X509Certificate2(data);
         }
 
-        public YubicoPivReturnCode SetCertificate9a(X509Certificate2 cert)
+        public YubicoPivReturnCode SetCertificate9a(X509Certificate2 cert_9a)
         {
-            byte[] certData = cert.GetRawCertData();
+            byte[] certData = cert_9a.GetRawCertData();
             byte[] data = new byte[certData.Length + 1 + 3 + 5];
 
             data[0] = 0x70;
@@ -325,6 +384,70 @@ namespace YubicoLib.YubikeyPiv
             data[offset++] = 0;
 
             YubicoPivReturnCode code = YubikeyPivNative.YkPivSaveObject(_deviceHandle.State, YubikeyPivNative.YKPIV_OBJ_AUTHENTICATION, data, offset);
+
+            return code;
+        }
+
+        public X509Certificate2 GetCertificate9d()
+        {
+            byte[] data;
+            int length = 2048;
+
+            YubicoPivReturnCode code;
+
+            do
+            {
+                length *= 2;
+
+                data = new byte[length];
+                int tmpLength = length;
+                code = YubikeyPivNative.YkPivFetchObject(_deviceHandle.State, YubikeyPivNative.YKPIV_OBJ_KEY_MANAGEMENT, data, ref tmpLength);
+
+                if (code == YubicoPivReturnCode.YKPIV_GENERIC_ERROR)
+                    // Object is not set
+                    return null;
+
+                if (code == YubicoPivReturnCode.YKPIV_OK && code == YubicoPivReturnCode.YKPIV_SIZE_ERROR)
+                    continue;
+
+                // Shift up 1 byte to skip the first
+                Array.Copy(data, 1, data, 0, data.Length - 1);
+
+                // Resize for later
+                Array.Resize(ref data, tmpLength - 1);
+            } while (code == YubicoPivReturnCode.YKPIV_SIZE_ERROR);
+
+            if (code != YubicoPivReturnCode.YKPIV_OK)
+                throw new Exception("Unable to fetch for PIV certificate 9d: " + code);
+
+            int certLength;
+            int offset = GetDataOffsetAndLength(data, out certLength);
+
+            Array.Copy(data, offset, data, 0, certLength);
+            //Array.Resize(ref data, certLength);
+
+            return new X509Certificate2(data);
+        }
+
+        public YubicoPivReturnCode SetCertificate9d(X509Certificate2 cert_9d)
+        {
+            byte[] certData = cert_9d.GetRawCertData();
+            byte[] data = new byte[certData.Length + 1 + 3 + 5];
+
+            data[0] = 0x70;
+            int offset = 1;
+            offset += SetDataLength(data, offset, certData.Length);
+            Array.Copy(certData, 0, data, offset, certData.Length);
+
+            offset += certData.Length;
+
+            data[offset++] = 0x71;
+            data[offset++] = 1;
+            data[offset++] = 0; // certinfo (gzip etc)
+            data[offset++] = 0xFE; // LRC
+            data[offset++] = 0;
+
+            YubicoPivReturnCode code = YubikeyPivNative.YkPivSaveObject(_deviceHandle.State, YubikeyPivNative.YKPIV_OBJ_KEY_MANAGEMENT, data, offset);
 
             return code;
         }

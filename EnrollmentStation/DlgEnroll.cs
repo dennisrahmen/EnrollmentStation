@@ -15,10 +15,12 @@ using EnrollmentStation.Code.Utilities;
 using Tulpep.ActiveDirectoryObjectPicker;
 using YubicoLib.YubikeyPiv;
 using YubicoLib.YubikeyManager;
+using MetroFramework.Forms;
+using MetroFramework;
 
 namespace EnrollmentStation
 {
-    public partial class DlgEnroll : Form
+    public partial class DlgEnroll : MetroForm
     {
         private readonly Settings _settings;
         private readonly DataStore _dataStore;
@@ -78,11 +80,13 @@ namespace EnrollmentStation
                 Domain domain = Domain.GetComputerDomain();
 
                 if (!string.IsNullOrWhiteSpace(domain.Name))
-                    llBrowseUser.Visible = true;
+                    llBrowseStdUser.Visible = true;
+                    llBrowseAdmUser.Visible = true;
             }
             catch (ActiveDirectoryObjectNotFoundException)
             {
-                llBrowseUser.Visible = false;
+                llBrowseStdUser.Visible = false;
+                llBrowseAdmUser.Visible = false;
             }
 
             // Prepare algorithms
@@ -141,14 +145,14 @@ namespace EnrollmentStation
             if (runWorkerCompletedEventArgs.Error != null)
             {
                 // An error happened
-                MessageBox.Show("An exception has occurred: " + runWorkerCompletedEventArgs.Error.Message + Environment.NewLine + Environment.NewLine + runWorkerCompletedEventArgs.Error.StackTrace, "Unexpected error", MessageBoxButtons.OK, MessageBoxIcon.Stop);
+                MetroMessageBox.Show(this, "An exception has occurred: " + runWorkerCompletedEventArgs.Error.Message + Environment.NewLine + Environment.NewLine + runWorkerCompletedEventArgs.Error.StackTrace, "Unexpected error", MessageBoxButtons.OK, MessageBoxIcon.Stop);
 
                 prgEnroll.Value = prgEnroll.Minimum;
             }
             else if (runWorkerCompletedEventArgs.Cancelled)
             {
                 // An error happened
-                MessageBox.Show(_enrollWorkerMessage, "Error", MessageBoxButtons.OK, MessageBoxIcon.Stop);
+                MetroMessageBox.Show(this, _enrollWorkerMessage, "Error", MessageBoxButtons.OK, MessageBoxIcon.Stop);
 
                 prgEnroll.Value = prgEnroll.Minimum;
             }
@@ -157,7 +161,7 @@ namespace EnrollmentStation
                 prgEnroll.Value = prgEnroll.Maximum;
 
                 // Success
-                MessageBox.Show("Successfully enrolled Yubikey for user", "Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                MetroMessageBox.Show(this, "Successfully enrolled Yubikey for user", "Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
 
                 Close();
             }
@@ -183,7 +187,7 @@ namespace EnrollmentStation
             using (YubikeyPivDevice dev = YubikeyPivManager.Instance.OpenDevice(devName))
             {
                 // 1. Prep device info
-                int deviceId = (int) dev.GetSerialNumber();
+                int deviceId = (int)dev.GetSerialNumber();
                 string neoFirmware = dev.GetVersion().ToString();
                 Version pivFirmware;
 
@@ -201,12 +205,14 @@ namespace EnrollmentStation
                 _enrollWorker.ReportProgress(2);
 
                 // 3 - Prep CA
-                WindowsCertificate enrollmentAgent = WindowsCertStoreUtilities.FindCertificate(_settings.EnrollmentAgentCertificate);
+                WindowsCertificate enrollmentAgent_std = WindowsCertStoreUtilities.FindCertificate(_settings.EnrollmentAgentCertificate);
+                WindowsCertificate enrollmentAgent_adm = WindowsCertStoreUtilities.FindCertificate(_settings.EnrollmentAgentCertificate);
                 string ca = _settings.CSREndpoint;
                 string caTemplate = _settings.EnrollmentCaTemplate;
-                string user = txtUser.Text;
+                string std_user = txtStdUser.Text;  //std
+                string adm_user = txtAdmUser.Text;  //adm
 
-                if (enrollmentAgent == null)
+                if (enrollmentAgent_std == null)
                 {
                     doWorkEventArgs.Cancel = true;
                     _enrollWorkerMessage = "Unable to find the certificate with thumbprint: " + _settings.EnrollmentAgentCertificate;
@@ -221,8 +227,10 @@ namespace EnrollmentStation
 
                 _enrollWorker.ReportProgress(4);
 
-                RSAParameters publicKey;
-                X509Certificate2 cert;
+                RSAParameters publicKey_std = new RSAParameters();
+                RSAParameters publicKey_adm = new RSAParameters();
+                X509Certificate2 std_cert;
+                X509Certificate2 adm_cert;
                 byte[] chuid;
 
                 using (YubikeyPivDevice pivTool = YubikeyPivManager.Instance.OpenDevice(devName))
@@ -302,40 +310,106 @@ namespace EnrollmentStation
                     // 10 - Yubico: Generate Key
                     YubikeyAlgorithm algorithm = (YubikeyAlgorithm)drpAlgorithm.SelectedItem;
 
-                    bool keyGenerated = pivTool.GenerateKey9a(algorithm.Value, out publicKey);
-
-                    if (!keyGenerated)
+                    
+                    if (std_user != "")
                     {
-                        doWorkEventArgs.Cancel = true;
-                        _enrollWorkerMessage = "Unable to generate a keypair";
-                        return;
+                        try
+                        {
+                            pivTool.GenerateKey9a(algorithm.Value, out publicKey_std);
+                        }
+                        catch
+                        {
+                            doWorkEventArgs.Cancel = true;
+                            _enrollWorkerMessage = "Unable to generate a keypair for Standard User";
+                            return;
+                        }
+                    }
+                    if (adm_user != "")
+                    {
+                        try
+                        {
+                            pivTool.GenerateKey9d(algorithm.Value, out publicKey_adm);
+                        }
+                        catch
+                        {
+                            doWorkEventArgs.Cancel = true;
+                            _enrollWorkerMessage = "Unable to generate a keypair for Admin User";
+                            return;
+                        }
                     }
 
                     _enrollWorker.ReportProgress(10);
                 }
 
                 // 11 - Yubico: Make CSR
-                string csr;
-                string csrError;
-                bool madeCsr = MakeCsr(Utilities.ExportPublicKeyToPEMFormat(publicKey), pin, out csrError, out csr);
+                string csr_std = null;
+                string csr_adm = null;
+                string csrError = null;
 
-                if (!madeCsr)
+                if(std_user != "")
                 {
-                    doWorkEventArgs.Cancel = true;
-                    _enrollWorkerMessage = "Unable to generate a CSR" + Environment.NewLine + csrError;
-                    return;
+                    try
+                    {
+                        MakeCsr_std(Utilities.ExportPublicKeyToPEMFormat(publicKey_std), pin, out csrError, out csr_std);
+                    }
+                    catch
+                    {
+                        doWorkEventArgs.Cancel = true;
+                        _enrollWorkerMessage = "Unable to generate a CSR for Standard User" + Environment.NewLine + csrError;
+                        return;
+                    }
+                }
+
+                if (adm_user != "")
+                {
+                    try
+                    {
+                        MakeCsr_adm(Utilities.ExportPublicKeyToPEMFormat(publicKey_adm), pin, out csrError, out csr_adm);
+                    }
+                    catch
+                    {
+                        doWorkEventArgs.Cancel = true;
+                        _enrollWorkerMessage = "Unable to generate a CSR for Admin User" + Environment.NewLine + csrError;
+                        return;
+                    }
                 }
 
                 _enrollWorker.ReportProgress(11);
 
                 // 12 - Enroll
-                string enrollError;
-                bool enrolled = CertificateUtilities.Enroll(user, enrollmentAgent, ca, caTemplate, csr, out enrollError, out cert);
+                string std_enrollError = null;
+                string adm_enrollError = null;
+                bool std_enrolled = true;
+                bool adm_enrolled = true;
 
-                if (!enrolled)
+                if (std_user != "")
+                {
+                    std_enrolled = CertificateUtilities.Enroll(std_user, enrollmentAgent_std, ca, caTemplate, csr_std, out std_enrollError, out std_cert);
+                }
+                else
+                {
+                    std_cert = null;
+                }
+
+                if (adm_user != "")
+                {
+                    adm_enrolled = CertificateUtilities.Enroll(adm_user, enrollmentAgent_adm, ca, caTemplate, csr_adm, out adm_enrollError, out adm_cert);
+                }
+                else
+                {
+                    adm_cert = null;
+                }
+
+                if (!std_enrolled)
                 {
                     doWorkEventArgs.Cancel = true;
-                    _enrollWorkerMessage = "Unable to enroll a certificate." + Environment.NewLine + enrollError;
+                    _enrollWorkerMessage = "Unable to enroll a certificate for Standard User." + Environment.NewLine + std_enrollError;
+                    return;
+                }
+                if (!adm_enrolled)
+                {
+                    doWorkEventArgs.Cancel = true;
+                    _enrollWorkerMessage = "Unable to enroll a certificate for Admin User." + Environment.NewLine + adm_enrollError;
                     return;
                 }
 
@@ -353,42 +427,94 @@ namespace EnrollmentStation
                         return;
                     }
 
-                    YubicoPivReturnCode imported = pivTool.SetCertificate9a(cert);
-
-                    if (imported != YubicoPivReturnCode.YKPIV_OK)
+                    if (std_user != "")
                     {
-                        doWorkEventArgs.Cancel = true;
-                        _enrollWorkerMessage = $"Unable to import a certificate, return code {imported}";
-                        return;
+                        try
+                        {
+                            pivTool.SetCertificate9a(std_cert);
+                        }
+                        catch
+                        {
+                            doWorkEventArgs.Cancel = true;
+                            _enrollWorkerMessage = $"Unable to import a certificate";
+                            return;
+                        }
+                    }
+
+                    if (adm_user != "")
+                    {
+                        try
+                        {
+                            pivTool.SetCertificate9d(adm_cert);
+                        }
+                        catch
+                        {
+                            doWorkEventArgs.Cancel = true;
+                            _enrollWorkerMessage = $"Unable to import a certificate";
+                            return;
+                        }
                     }
 
                     _enrollWorker.ReportProgress(13);
                 }
 
-                // 14 - Create enrolled item
-                EnrolledYubikey newEnrollment = new EnrolledYubikey();
-                newEnrollment.DeviceSerial = deviceId;
+                // 14 - Create enrolled item for Standard User
+                if (std_user != "")
+                {
+                    EnrolledYubikey newEnrollment_std = new EnrolledYubikey();
+                    newEnrollment_std.DeviceSerial = deviceId;
 
-                newEnrollment.Certificate.Serial = cert.SerialNumber;
-                newEnrollment.Certificate.Thumbprint = cert.Thumbprint;
-                newEnrollment.Certificate.Subject = cert.Subject;
-                newEnrollment.Certificate.Issuer = cert.Issuer;
-                newEnrollment.Certificate.StartDate = cert.NotBefore;
-                newEnrollment.Certificate.ExpireDate = cert.NotAfter;
-                newEnrollment.Certificate.RawCertificate = cert.RawData;
+                    newEnrollment_std.Certificate.Serial = std_cert.SerialNumber;
+                    newEnrollment_std.Certificate.Thumbprint = std_cert.Thumbprint;
+                    newEnrollment_std.Certificate.Subject = std_cert.Subject;
+                    newEnrollment_std.Certificate.Issuer = std_cert.Issuer;
+                    newEnrollment_std.Certificate.StartDate = std_cert.NotBefore;
+                    newEnrollment_std.Certificate.ExpireDate = std_cert.NotAfter;
+                    newEnrollment_std.Certificate.RawCertificate = std_cert.RawData;
 
-                newEnrollment.CA = ca;
-                newEnrollment.Username = user;
-                newEnrollment.ManagementKey = mgmKey;
-                newEnrollment.PukKey = puk;
-                newEnrollment.Chuid = BitConverter.ToString(chuid).Replace("-", "");
+                    newEnrollment_std.CA = ca;
+                    newEnrollment_std.Username = std_user;
+                    newEnrollment_std.Slot = "Standard User";
+                    newEnrollment_std.ManagementKey = mgmKey;
+                    newEnrollment_std.PukKey = puk;
+                    newEnrollment_std.Chuid = BitConverter.ToString(chuid).Replace("-", "");
 
-                newEnrollment.EnrolledAt = DateTime.UtcNow;
+                    newEnrollment_std.EnrolledAt = DateTime.UtcNow;
 
-                newEnrollment.YubikeyVersions.NeoFirmware = neoFirmware;
-                newEnrollment.YubikeyVersions.PivApplet = pivFirmware.ToString();
+                    newEnrollment_std.YubikeyVersions.NeoFirmware = neoFirmware;
+                    newEnrollment_std.YubikeyVersions.PivApplet = pivFirmware.ToString();
 
-                _dataStore.Add(newEnrollment);
+                    _dataStore.Add(newEnrollment_std);
+                }
+
+                // 14 - Create enrolled item for Admin User
+                if (adm_user != "")
+                {
+                    EnrolledYubikey newEnrollment_adm = new EnrolledYubikey();
+                    newEnrollment_adm.DeviceSerial = deviceId;
+
+                    newEnrollment_adm.Certificate.Serial = adm_cert.SerialNumber;
+                    newEnrollment_adm.Certificate.Thumbprint = adm_cert.Thumbprint;
+                    newEnrollment_adm.Certificate.Subject = adm_cert.Subject;
+                    newEnrollment_adm.Certificate.Issuer = adm_cert.Issuer;
+                    newEnrollment_adm.Certificate.StartDate = adm_cert.NotBefore;
+                    newEnrollment_adm.Certificate.ExpireDate = adm_cert.NotAfter;
+                    newEnrollment_adm.Certificate.RawCertificate = adm_cert.RawData;
+
+                    newEnrollment_adm.CA = ca;
+                    newEnrollment_adm.Username = adm_user;
+                    newEnrollment_adm.Slot = "Admin User";
+                    newEnrollment_adm.ManagementKey = mgmKey;
+                    newEnrollment_adm.PukKey = puk;
+                    newEnrollment_adm.Chuid = BitConverter.ToString(chuid).Replace("-", "");
+
+                    newEnrollment_adm.EnrolledAt = DateTime.UtcNow;
+
+                    newEnrollment_adm.YubikeyVersions.NeoFirmware = neoFirmware;
+                    newEnrollment_adm.YubikeyVersions.PivApplet = pivFirmware.ToString();
+
+                    _dataStore.Add(newEnrollment_adm);
+                }
 
                 _enrollWorker.ReportProgress(14);
 
@@ -422,7 +548,35 @@ namespace EnrollmentStation
             if (!hasDevice)
                 return;
 
-            lblAlreadyEnrolled.Visible = _hasBeenEnrolled;
+            using (YubikeyPivDevice dev = YubikeyPivManager.Instance.OpenDevice(devName))
+            {
+                X509Certificate2 cert = null;   //Standard Cert
+                X509Certificate2 cert2 = null;  //Admin Cert
+
+                cert = dev.GetCertificate9a();
+                cert2 = dev.GetCertificate9d();
+
+                if ((cert != null || cert2 != null) && _hasBeenEnrolled == true)
+                {
+                    lblAlreadyEnrolled.Text = "Enrolled!";
+                    lblAlreadyEnrolled.ForeColor = Color.Green;
+                }
+                else if ((cert != null || cert2 != null) && _hasBeenEnrolled == false)
+                {
+                    lblAlreadyEnrolled.Text = "YubiKey is not empty!";
+                    lblAlreadyEnrolled.ForeColor = Color.Red;
+                }
+                else if ((cert == null || cert2 == null) && _hasBeenEnrolled == true)
+                {
+                    lblAlreadyEnrolled.Text = "YubiKey is empty! Please revoke Certificate!";
+                    lblAlreadyEnrolled.ForeColor = Color.Red;
+                }
+                else if ((cert == null || cert2 == null) && _hasBeenEnrolled == false)
+                {
+                    lblAlreadyEnrolled.Text = "YubiKey can be enrolled!";
+                    lblAlreadyEnrolled.ForeColor = Color.DarkOrange;
+                }
+            }
 
             using (YubikeyPivDevice dev = YubikeyPivManager.Instance.OpenDevice(devName))
             {
@@ -456,10 +610,7 @@ namespace EnrollmentStation
             if (txtPin.Text != txtPinAgain.Text)
                 eligible = false;
 
-            if (string.IsNullOrEmpty(txtUser.Text))
-                eligible = false;
-
-            if (_hasBeenEnrolled)
+            if (string.IsNullOrEmpty(txtStdUser.Text) && string.IsNullOrEmpty(txtAdmUser.Text))
                 eligible = false;
 
             cmdEnroll.Enabled = eligible;
@@ -475,13 +626,38 @@ namespace EnrollmentStation
 
             using (YubikeyPivDevice piv = YubikeyPivManager.Instance.OpenDevice(devName))
             {
-                if (piv.GetCertificate9a() != null)
+                if (txtStdUser.Text != null && txtAdmUser.Text == null)
                 {
-                    // Already enrolled
-                    DialogResult resp = MessageBox.Show("The inserted Yubikey has already been enrolled. Are you sure you wish to overwrite it?", "Already enrolled", MessageBoxButtons.YesNo, MessageBoxIcon.Exclamation);
+                    if (piv.GetCertificate9a() != null)
+                    {
+                        // Already enrolled
+                        DialogResult resp = MetroMessageBox.Show(this, "The inserted Yubikey has already been enrolled. Are you sure you wish to overwrite it?", "Already enrolled", MessageBoxButtons.YesNo, MessageBoxIcon.Exclamation);
 
-                    if (resp != DialogResult.Yes)
-                        return;
+                        if (resp != DialogResult.Yes)
+                            return;
+                    }
+                }
+                else if (txtAdmUser.Text != null && txtStdUser.Text == null)
+                {
+                    if (piv.GetCertificate9d() != null)
+                    {
+                        // Already enrolled
+                        DialogResult resp = MetroMessageBox.Show(this, "The inserted Yubikey has already been enrolled. Are you sure you wish to overwrite it?", "Already enrolled", MessageBoxButtons.YesNo, MessageBoxIcon.Exclamation);
+
+                        if (resp != DialogResult.Yes)
+                            return;
+                    }
+                }
+                else
+                {
+                    if (piv.GetCertificate9d() != null)
+                    {
+                        // Already enrolled
+                        DialogResult resp = MetroMessageBox.Show(this, "The inserted Yubikey has already been enrolled. Are you sure you wish to overwrite Standard and Admin User?", "Already enrolled", MessageBoxButtons.YesNo, MessageBoxIcon.Exclamation);
+
+                        if (resp != DialogResult.Yes)
+                            return;
+                    }
                 }
             }
 
@@ -493,10 +669,12 @@ namespace EnrollmentStation
             foreach (Control control in groupBox3.Controls)
                 control.Enabled = false;
 
+            drpAlgorithm.Enabled = false;
+
             _enrollWorker.RunWorkerAsync();
         }
 
-        private bool MakeCsr(string pubKeyAsPem, string pin, out string error, out string csr)
+        private bool MakeCsr_std(string pubKeyAsPem, string pin, out string error, out string csr)
         {
             csr = null;
 
@@ -553,7 +731,64 @@ namespace EnrollmentStation
             }
         }
 
-        private void llBrowseUser_LinkClicked(object sender, LinkLabelLinkClickedEventArgs e)
+        private bool MakeCsr_adm(string pubKeyAsPem, string pin, out string error, out string csr)
+        {
+            csr = null;
+
+            // TODO: Fix.. use no files at all - this is an ugly hack
+            // I wasn't able to create a CSR and sign it using code - so we're using Yubico's code for now
+            string tmpPub = Path.GetRandomFileName();
+            string tmpCsr = Path.GetRandomFileName();
+
+            try
+            {
+                using (StreamWriter sw = new StreamWriter(tmpPub))
+                {
+                    sw.WriteLine("-----BEGIN PUBLIC KEY-----");
+
+                    for (int i = 0; i < pubKeyAsPem.Length; i += 48)
+                    {
+                        string substr = pubKeyAsPem.Substring(i, Math.Min(48, pubKeyAsPem.Length - i));
+                        sw.WriteLine(substr);
+                    }
+
+                    sw.WriteLine("-----END PUBLIC KEY-----");
+                }
+
+                const string binary = @"Binaries\PivTool\yubico-piv-tool.exe";
+
+                ProcessStartInfo start = new ProcessStartInfo(binary);
+                start.Arguments = "-a verify-pin -P " + pin + " -s 9d -a request-certificate -S \"/CN=example/O=test/\" -i " + tmpPub + " -o " + tmpCsr + "";
+                start.WorkingDirectory = Path.GetFullPath(".");
+                start.CreateNoWindow = true;
+                start.UseShellExecute = false;
+                start.RedirectStandardError = true;
+                start.RedirectStandardOutput = true;
+
+                Process proc = Process.Start(start);
+                proc.WaitForExit();
+
+                string stdErr = proc.StandardError.ReadToEnd();
+                string stdOut = proc.StandardOutput.ReadToEnd();
+
+                if (File.Exists(tmpCsr))
+                    csr = File.ReadAllText(tmpCsr);
+
+                error = "Output: " + stdOut + Environment.NewLine + "Error: " + stdErr;
+
+                return proc.ExitCode == 0;
+            }
+            finally
+            {
+                if (File.Exists(tmpPub))
+                    File.Delete(tmpPub);
+
+                if (File.Exists(tmpCsr))
+                    File.Delete(tmpCsr);
+            }
+        }
+
+        private void llBrowseStdUser_LinkClicked(object sender, LinkLabelLinkClickedEventArgs e)
         {
             DirectoryObjectPickerDialog picker = new DirectoryObjectPickerDialog()
             {
@@ -573,7 +808,46 @@ namespace EnrollmentStation
 
                 if (sel != null)
                 {
-                    txtUser.Text = userName;
+                    if (txtAdmUser.Text != userName)
+                    {
+                        txtStdUser.Text = userName;
+                    }
+                    else
+                    {
+                        MetroMessageBox.Show(this, "Username already in use", "Warning!", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    }
+                }
+            }
+        }
+
+        private void llBrowseAdmUser_LinkClicked(object sender, LinkLabelLinkClickedEventArgs e)
+        {
+            DirectoryObjectPickerDialog picker = new DirectoryObjectPickerDialog()
+            {
+                AllowedObjectTypes = ObjectTypes.Users,
+                DefaultObjectTypes = ObjectTypes.Users,
+                AllowedLocations = Locations.All,
+                DefaultLocations = Locations.JoinedDomain,
+                MultiSelect = false,
+                ShowAdvancedView = true,
+                AttributesToFetch = { "samAccountName" }
+            };
+
+            if (picker.ShowDialog() == DialogResult.OK)
+            {
+                DirectoryObject sel = picker.SelectedObjects.FirstOrDefault();
+                string userName = sel?.FetchedAttributes.FirstOrDefault() as string;
+
+                if (sel != null)
+                {
+                    if (txtStdUser.Text != userName)
+                    {
+                        txtAdmUser.Text = userName;
+                    }
+                    else
+                    {
+                        MetroMessageBox.Show(this, "Username already in use", "Warning!", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    }
                 }
             }
         }
@@ -610,6 +884,5 @@ namespace EnrollmentStation
                 e.Cancel = false;
             }
         }
-
     }
 }

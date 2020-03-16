@@ -4,13 +4,15 @@ using System.Linq;
 using System.Windows.Forms;
 using EnrollmentStation.Code;
 using EnrollmentStation.Code.DataObjects;
+using MetroFramework;
+using MetroFramework.Forms;
 // using YubicoLib.YubikeyNeo;
 using YubicoLib.YubikeyPiv;
 
 
 namespace EnrollmentStation
 {
-    public partial class DlgResetPin : Form
+    public partial class DlgResetPin : MetroForm
     {
         private EnrolledYubikey _yubikey;
 
@@ -90,7 +92,7 @@ namespace EnrollmentStation
 
                 if (!authed)
                 {
-                    MessageBox.Show("Unable to authenticate.", "An error occurred.", MessageBoxButtons.OK, MessageBoxIcon.Stop);
+                    MetroMessageBox.Show(this, "Unable to authenticate.", "An error occurred.", MessageBoxButtons.OK, MessageBoxIcon.Stop);
                     return;
                 }
 
@@ -101,12 +103,12 @@ namespace EnrollmentStation
 
                 if (changed)
                 {
-                    MessageBox.Show("The PIN code has been reset.", "Success.", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    MetroMessageBox.Show(this, "The PIN code has been reset.", "Success.", MessageBoxButtons.OK, MessageBoxIcon.Information);
 
                     Close();
                 }
                 else
-                    MessageBox.Show("An error occured while resetting the PIN code. Please try again.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Stop);
+                    MetroMessageBox.Show(this, "An error occured while resetting the PIN code. Please try again.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Stop);
             }
         }
 

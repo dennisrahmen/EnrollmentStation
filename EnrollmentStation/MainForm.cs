@@ -10,13 +10,17 @@ using EnrollmentStation.Code.DataObjects;
 using EnrollmentStation.Code.Utilities;
 using YubicoLib.YubikeyPiv;
 using YubicoLib.YubikeyManager;
+using System.Drawing;
+using MetroFramework.Forms;
+using MetroFramework;
 
 namespace EnrollmentStation
 {
-    public partial class MainForm : Form
+    public partial class MainForm : MetroForm
     {
         private DataStore _dataStore;
         private Settings _settings;
+        private bool _hasBeenEnrolled;
 
         public const string FileStore = "store.json";
         public const string FileSettings = "settings.json";
@@ -60,7 +64,7 @@ namespace EnrollmentStation
 
                 if (res != DialogResult.OK)
                 {
-                    MessageBox.Show("You have to set the settings. Restart the application to set the settings.");
+                    MetroMessageBox.Show(this, "You have to set the settings. Restart the application to set the settings.", "Settings not set", MessageBoxButtons.OK, MessageBoxIcon.Error);
                     Close();
                 }
             }
@@ -85,6 +89,9 @@ namespace EnrollmentStation
             btnEnableCCID.Enabled = false;
             btnExportCert.Enabled = false;
             btnViewCert.Enabled = false;
+            btnResetYubiKey.Enabled = false;
+
+
 
             if (hasDevice)
             {
@@ -96,6 +103,7 @@ namespace EnrollmentStation
                     btnEnableCCID.Enabled = HasCcid;
                     btnExportCert.Enabled = !have2enableCcid;
                     btnViewCert.Enabled = !have2enableCcid;
+                    btnResetYubiKey.Enabled =!have2enableCcid;
                 }
                 
             }
@@ -118,7 +126,9 @@ namespace EnrollmentStation
             }
 
             if (lstItems.SelectedItems.Count <= 0)
+            {
                 return;
+            }
 
             EnrolledYubikey item = lstItems.SelectedItems[0].Tag as EnrolledYubikey;
 
@@ -165,14 +175,56 @@ namespace EnrollmentStation
                     lblInsertedSerial.Text = yi.serial;
                     lblInsertedFirmware.Text = yi.firmware;
                     lblInsertedMode.Text = yi.usbinterface;
-                    lblInsertedHasBeenEnrolled.Text = _dataStore.Search(serialNumber).Any().ToString();
+
+                    X509Certificate2 cert = null;   //Standard Cert
+                    X509Certificate2 cert2 = null;  //Admin Cert
+
+                    
+
+                    _hasBeenEnrolled = _dataStore.Search((int)dev.GetSerialNumber()).Any();
+
+
+                    cert = dev.GetCertificate9a();
+                    cert2 = dev.GetCertificate9d();
+
+                    if((cert != null || cert2 != null) && _hasBeenEnrolled == true)
+                    {
+                        lblInsertedHasBeenEnrolled.Text = "Enrolled!";
+                        lblInsertedHasBeenEnrolled.ForeColor = Color.Green;
+                    }
+                    else if((cert != null || cert2 != null) && _hasBeenEnrolled == false)
+                    {
+                        lblInsertedHasBeenEnrolled.Text = "YubiKey is not empty!";
+                        lblInsertedHasBeenEnrolled.ForeColor = Color.Red;
+                    }
+                    else if ((cert == null || cert2 == null) && _hasBeenEnrolled == true)
+                    {
+                        lblInsertedHasBeenEnrolled.Text = "YubiKey is empty! Please revoke Certificate!";
+                        lblInsertedHasBeenEnrolled.ForeColor = Color.Red;
+                    }
+                    else if ((cert == null || cert2 == null) && _hasBeenEnrolled == false)
+                    {
+                        lblInsertedHasBeenEnrolled.Text = "YubiKey can be enrolled!";
+                        lblInsertedHasBeenEnrolled.ForeColor = Color.DarkOrange;
+                    }
                 }
             }
 
             if (listDevices.Count > 1)
+            {
                 lblMultipleKeys.Text = $"{listDevices.Count:N0} keys inserted";
+                btnResetYubiKey.Enabled = false;
+                btnViewCert.Enabled = false;
+                btnEnableCCID.Enabled = false;
+                btnExportCert.Enabled = false;
+                tsbEnroll.Enabled = false;
+                tsbAbout.Enabled = false;
+                tsbSettings.Enabled = false;
+            }
             else
+            {
                 lblMultipleKeys.Text = "";
+            }
         }
 
         private void RefreshUserStore()
@@ -194,11 +246,16 @@ namespace EnrollmentStation
                 // User
                 lsItem.SubItems.Add(yubikey.Username);
 
+                // Slot
+                lsItem.SubItems.Add(yubikey.Slot);
+
                 // Enrolled
                 lsItem.SubItems.Add(yubikey.EnrolledAt.ToLocalTime().ToString());
 
                 // Certificate Serial
                 lsItem.SubItems.Add(yubikey.Certificate != null ? yubikey.Certificate.Serial : "<unknown>");
+
+                
 
                 lstItems.Items.Add(lsItem);
             }
@@ -212,9 +269,10 @@ namespace EnrollmentStation
         }
 
 
-        private void btnViewCert_Click(object sender, EventArgs e)
+        private void btnViewCert_Click(object sender, EventArgs e)  //Angepasst, sodass beide Zertifikate angezeigt werden können
         {
-            X509Certificate2 cert = null;
+            X509Certificate2 cert = null;   //Standard Cert
+            X509Certificate2 cert2 = null;  //Admin Cert
 
             string devName = YubikeyPivManager.Instance.ListDevices().FirstOrDefault();
 
@@ -223,18 +281,33 @@ namespace EnrollmentStation
                 using (YubikeyPivDevice dev = YubikeyPivManager.Instance.OpenDevice(devName))
                 {
                     cert = dev.GetCertificate9a();
+                    cert2 = dev.GetCertificate9d();
+                    
                 }
             }
 
             if (cert == null)
-                MessageBox.Show("No certificate on device.", "No Certificate", MessageBoxButtons.OK);
+            {
+                MetroMessageBox.Show(this, "No Standard User certificate on device.", "No Certificate", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }
             else
+            {
                 X509Certificate2UI.DisplayCertificate(cert);
+            }
+            if (cert2 == null)
+            {
+                MetroMessageBox.Show(this, "No Admin User certificate on device.", "No Certificate", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }
+            else
+            {
+                X509Certificate2UI.DisplayCertificate(cert2);
+            }
         }
 
-        private void btnExportCert_Click(object sender, EventArgs e)
+        private void btnExportCert_Click(object sender, EventArgs e)         //Änderungen vorgenommen, dass beide Zertifikate, wenn vorhanden exportiert werden können    
         {
-            X509Certificate2 cert = null;
+            X509Certificate2 cert = null;   //Standard Cert
+            X509Certificate2 cert2 = null;  //Admin Cert
             int deviceSerial = 0;
 
             string devName = YubikeyPivManager.Instance.ListDevices().FirstOrDefault();
@@ -249,12 +322,13 @@ namespace EnrollmentStation
                 using (YubikeyPivDevice dev = YubikeyPivManager.Instance.OpenDevice(devName))
                 {
                     cert = dev.GetCertificate9a();
+                    cert2 = dev.GetCertificate9d();
                 }
             }
 
-            if (cert == null)
+            if (cert == null && cert2 == null)
             {
-                MessageBox.Show("No certificate on device.", "No Certificate", MessageBoxButtons.OK);
+                MetroMessageBox.Show(this, "No certificate on device.", "No Certificate", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 return;
             }
 
@@ -266,10 +340,22 @@ namespace EnrollmentStation
             if (dlgResult != DialogResult.OK)
                 return;
 
-            using (Stream fs = saveFileDialog.OpenFile())
+            if (cert != null)                                          
             {
-                byte[] data = cert.GetRawCertData();
-                fs.Write(data, 0, data.Length);
+                using (Stream fs = saveFileDialog.OpenFile())
+                {
+                    byte[] data = cert.GetRawCertData();
+                    fs.Write(data, 0, data.Length);
+                }
+            }
+
+            if(cert2 != null)
+            {
+                using (Stream fs = saveFileDialog.OpenFile())
+                {
+                    byte[] data = cert2.GetRawCertData();
+                    fs.Write(data, 0, data.Length);
+                }
             }
         }
 
@@ -360,7 +446,7 @@ namespace EnrollmentStation
             if (item == null)
                 return;
 
-            DialogResult dlgResult = MessageBox.Show("Revoke the certificate enrolled at " + item.EnrolledAt.ToLocalTime() + " for " + item.Username + ". This action will revoke " +
+            DialogResult dlgResult = MetroMessageBox.Show(this, "Revoke the certificate enrolled at " + item.EnrolledAt.ToLocalTime() + " for " + item.Username + ". This action will revoke " +
                    "the certificate, but will NOT wipe the yubikey." + Environment.NewLine + Environment.NewLine +
                    "Certificate: " + item.Certificate.Serial + Environment.NewLine +
                    "Subject: " + item.Certificate.Subject + Environment.NewLine +
@@ -386,7 +472,7 @@ namespace EnrollmentStation
                 }
                 catch (Exception ex)
                 {
-                    MessageBox.Show(
+                    MetroMessageBox.Show(this,
                         "Unable to revoke certificate " + item.Certificate.Serial + " of " + item.CA +
                         " enrolled on " + item.EnrolledAt + ". There was an error." + Environment.NewLine +
                         Environment.NewLine + ex.Message, "An error occurred.", MessageBoxButtons.OK, MessageBoxIcon.Warning);
@@ -407,125 +493,94 @@ namespace EnrollmentStation
             RefreshInsertedKey();
         }
 
-        private void terminateToolStripMenuItem1_Click(object sender, EventArgs e)
-        {
-            if (lstItems.SelectedItems.Count <= 0)
-                return;
-
-            EnrolledYubikey item = lstItems.SelectedItems[0].Tag as EnrolledYubikey;
-            if (item == null)
-                return;
-
-            X509Certificate2 currentCert = new X509Certificate2(item.Certificate.RawCertificate);
-
-            DialogResult dlgResult = MessageBox.Show("This will terminate the Yubikey, wiping the PIN, PUK, Management Key and Certificates. " +
-                                                     "This will also revoke the certificate. Proceeed?" + Environment.NewLine + Environment.NewLine +
-                                                     "Will revoke: " + currentCert.Subject + Environment.NewLine +
-                                                     "By: " + currentCert.Issuer, "Terminate (WILL revoke)",
-                                                     MessageBoxButtons.YesNo, MessageBoxIcon.Exclamation, MessageBoxDefaultButton.Button2);
-
-            if (dlgResult != DialogResult.Yes)
-                return;
-
-            DlgPleaseInsertYubikey yubiWaiter = new DlgPleaseInsertYubikey(item);
-            DialogResult result = yubiWaiter.ShowDialog();
-
-            if (result != DialogResult.OK)
-                return;
-
-            DlgProgress prg = new DlgProgress("Terminating certificate");
-            prg.WorkerAction = worker =>
-            {
-                worker.ReportProgress(20, "Revoking certificate ...");
-
-                // Begin
-                try
-                {
-                    CertificateUtilities.RevokeCertificate(item.CA, item.Certificate.Serial);
-
-                    // Revoked
-                    _dataStore.Remove(item);
-                }
-                catch (Exception ex)
-                {
-                    MessageBox.Show(
-                        "Unable to revoke certificate " + item.Certificate.Serial + " of " + item.CA +
-                        " enrolled on " + item.EnrolledAt + ". There was an error." + Environment.NewLine +
-                        Environment.NewLine + ex.Message, "An error occurred.", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-
-                    return;
-                }
-
-                // Wipe the Yubikey
-                worker.ReportProgress(50, "Wiping Yubikey ...");
-
-                string devName = YubikeyPivManager.Instance.ListDevices().FirstOrDefault();
-                bool hasDevice = !string.IsNullOrEmpty(devName);
-
-                if (hasDevice)
-                {
-                    using (YubikeyPivDevice dev = YubikeyPivManager.Instance.OpenDevice(devName))
-                    {
-                        int serial = (int) dev.GetSerialNumber();
-                        if (item.DeviceSerial != serial)
-                        {
-                            // Something went seriously wrong - perhaps the user switched keys?
-                            MessageBox.Show("Unable to reset the yubikey. The inserted key did not match the key you wanted to wipe.", "An error occurred.", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                            return;
-                        }
-                    }
-
-                    using (YubikeyPivDevice piv = YubikeyPivManager.Instance.OpenDevice(devName))
-                    {
-                        piv.BlockPin();
-                        worker.ReportProgress(70);
-
-                        piv.BlockPuk();
-                        worker.ReportProgress(90);
-
-                        bool reset = piv.ResetDevice();
-                        if (!reset)
-                        {
-                            MessageBox.Show("Unable to reset the yubikey. Try resetting it manually.", "An error occurred.", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                        }
-
-                        worker.ReportProgress(100);
-                    }
-                }
-
-                // Write to disk
-                _dataStore.Save(FileStore);
-            };
-
-            prg.ShowDialog();
-
-            RefreshUserStore();
-
-            RefreshInsertedKey();
-        }
-
         private void tsbAbout_Click(object sender, EventArgs e)
         {
-            MessageBox.Show("CSIS Enrollment Station" +
-                            Environment.NewLine +
-                            Environment.NewLine +
-                            "YubiKey 5/4/NEO have smart card functionality and with this application, you can enroll smart cards on behalf of users " +
-                            "when coupled with Windows Active Directory and Microsoft Windows Certificate Services." +
-                            Environment.NewLine +
-                            Environment.NewLine +
-                            "https://github.com/CSIS/EnrollmentStation/" +
-                            Environment.NewLine +
-                            Environment.NewLine +
-                            "Written by Michael Bisbjerg and Ian Qvist" +
-                            Environment.NewLine +
-                            "Modified by Jürgen Fechter", "CSIS Enrollment Station" 
-                            , MessageBoxButtons.OK);
+            About about = new About();
+            about.ShowDialog();
         }
 
         private void btnEnableCCID_Click(object sender, EventArgs e)
         {
             DlgChangeMode changeMode = new DlgChangeMode();
             DialogResult resp = changeMode.ShowDialog();
+        }
+
+        private void btnResetYubiKey_Click(object sender, EventArgs e)
+        {
+            string devName = YubikeyPivManager.Instance.ListDevices().FirstOrDefault();
+            bool hasDevice = !string.IsNullOrEmpty(devName);
+
+            if (hasDevice && MetroMessageBox.Show(this, "Are you sure you want to reset the YubiKey?", "Reset confirmation", MessageBoxButtons.OKCancel, MessageBoxIcon.Warning) == DialogResult.OK)
+            {
+                using (YubikeyPivDevice piv = YubikeyPivManager.Instance.OpenDevice(devName))
+                {
+                    piv.BlockPin();
+                    piv.BlockPuk();
+
+                    bool reset = piv.ResetDevice();
+                    if (!reset)
+                    {
+                        MetroMessageBox.Show(this, "Unable to reset the yubikey. Try resetting it manually.", "An error occurred.", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    }
+                    else
+                    {
+                        MetroMessageBox.Show(this, "YubiKey has been successfully resettet.", "Successfully", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                        RefreshInsertedKey();
+                    }
+                }
+            }
+        }
+
+        private void tb_search_TextChanged(object sender, EventArgs e)
+        {
+            if(tb_search.Text != "")
+            {
+                // Call FindItemWithText with the contents of the textbox.
+                ListViewItem foundItem = lstItems.FindItemWithText(tb_search.Text);
+                if (foundItem != null)
+                {
+                    foundItem.Selected = true;
+                    foundItem.EnsureVisible();
+                }
+                else
+                {
+                    lstItems.SelectedItems.Clear();
+                }
+            }
+            else
+            {
+                lstItems.SelectedItems.Clear();
+            }
+        }
+
+        private void tsbEnroll_MouseHover(object sender, EventArgs e)
+        {
+            tsbEnroll.Image = EnrollmentStation.Properties.Resources.s_add_24px; 
+        }
+
+        private void tsbSettings_MouseHover(object sender, EventArgs e)
+        {
+            tsbSettings.Image = EnrollmentStation.Properties.Resources.s_settings_24px;
+        }
+
+        private void tsbAbout_MouseHover(object sender, EventArgs e)
+        {
+            tsbAbout.Image = EnrollmentStation.Properties.Resources.s_star_24px;
+        }
+
+        private void tsbEnroll_MouseLeave(object sender, EventArgs e)
+        {
+            tsbEnroll.Image = EnrollmentStation.Properties.Resources.add_24px;
+        }
+
+        private void tsbSettings_MouseLeave(object sender, EventArgs e)
+        {
+            tsbSettings.Image = EnrollmentStation.Properties.Resources.settings_24px;
+        }
+
+        private void tsbAbout_MouseLeave(object sender, EventArgs e)
+        {
+            tsbAbout.Image = EnrollmentStation.Properties.Resources.star_24px;
         }
     }
 }
