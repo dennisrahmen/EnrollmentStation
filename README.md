@@ -4,11 +4,12 @@ A Smart Card enrollment station for use in enterprises with Microsoft Active Dir
 This project is an entry in the YubiKing 2015 competition and should be considered a work in progress.
 
 ### Note
-The original project is archived. (https://github.com/CSIS/EnrollmentStation)
-But we need the application including Yubikey 5 Support for hybrid environments with Linux, Windows and MacOS clients.
-Using container based Yubikeys with help of the Yubico Windows smartcard minidriver was not an option.
+The original project is archived. (https://github.com/CSIS/EnrollmentStation)   
+This version is a forked project from scVENUS. We added some new features.
 
-
+* You can save one or two certificates on one YubiKey
+* Store and settings file are now encripted
+* New metro style design
 
 ### Dependencies
 * Windows PKI (Active Directory Certificate Services)
@@ -17,7 +18,7 @@ Using container based Yubikeys with help of the Yubico Windows smartcard minidri
 * (optional) YubiHSM
 
 ## Download
-You can find the latest binaries at our [releases page](https://github.com/scVENUS/EnrollmentStation/releases). 
+You can find the latest binaries at our [releases page](https://github.com/jnsgsbz/EnrollmentStation/releases). 
 
 ## Prerequisites
 To use this tool you will need an Enrollment Agent Certificate which allows you to enroll certificates on behalf of other users. This certificate template is available on a default Active Directory Certificate Services (Windows CA) installation but is normally not permitted for any users other than Domain Admins. For added security, create a dedicated user which is used as the enrollment station user.
@@ -58,6 +59,7 @@ See the pdf manual, at [Manual-GUI.pdf](Manual-GUI.pdf)
 This project makes use of the following open source projects
 
 * [Active Directory Object picker](https://github.com/Tulpep/Active-Directory-Object-Picker)
+* [MetroFramework](https://github.com/thielj/MetroFramework)
 
 ## Todo
 * Handle more diverse PKI setups
