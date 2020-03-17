@@ -21,7 +21,7 @@ This version is a forked project from scVENUS. We added some new features.
 You can find the latest binaries at our [releases page](https://github.com/jnsgsbz/EnrollmentStation/releases). 
 
 ## Prerequisites
-To use this tool you will need an Enrollment Agent Certificate which allows you to enroll certificates on behalf of other users. This certificate template is available on a default Active Directory Certificate Services (Windows CA) installation but is normally not permitted for any users other than Domain Admins. For added security, create a dedicated user which is used as the enrollment station user.
+To use this tool you will need an Enrollment Agent Certificate which allows you to enroll certificates on behalf of other users. This certificate template is available on a default Active Directory Certificate Services (Windows CA) installation but is normally not permitted for any users other than Domain Admins. For additional security, create a dedicated user which is used as the enrollment station user.
 
 **A. Setup Enrollment Agent certificate template permissions**
 
@@ -47,9 +47,9 @@ After setting up the Enrollment Agent certificate, you need a YubiKey set to CCI
 2. In the GUI application (ykman-gui.exe) under `Interfaces` select on the left USB section `PIV`
 3. Save the new settings with click on `Save Interfaces`
 
-Alternativ use the CLI application (ykman.exe) and enter `ykman mode CCID`
+Alternatively use the CLI application (ykman.exe) and enter `ykman mode CCID`
 
-You can also read our Manual to find methods with accompanying screenshots.
+You can also read our manual to find methods with accompanying screenshots.
 
 ## Documentation
 See the pdf manual, at [Manual-GUI.pdf](Manual-GUI.pdf)
