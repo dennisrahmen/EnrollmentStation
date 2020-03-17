@@ -8,7 +8,7 @@ The original project is archived. (https://github.com/CSIS/EnrollmentStation)
 This version is a forked project from scVENUS. We added some new features.
 
 * You can save one or two certificates on one YubiKey
-* Store and settings file are now encripted
+* Store and settings file are now encrypted
 * New metro style design
 
 ### Dependencies
